@@ -21,18 +21,34 @@
     .lang-btn { cursor: pointer; padding: 6px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-weight: bold; color: #555; background: #fff; transition: 0.2s; }
     .lang-btn.active { background: #ff4ea3; color: white; border-color: #ff4ea3; }
 
+    /* 💡 フィルターメニューの折りたたみデザイン */
     #filter-container {
       position: absolute; top: 55px; right: 10px; z-index: 1000;
-      background: rgba(255, 255, 255, 0.95); padding: 10px; border-radius: 8px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-width: 160px; max-height: calc(100vh - 80px); overflow-y: auto;
+      background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 120px;
     }
-    .filter-title { font-weight:bold; margin-bottom:8px; border-bottom:2px solid #ff4ea3; padding-bottom:4px; font-size:13px; color: #333;}
+    .filter-title { 
+      font-weight:bold; font-size:14px; color: #333; margin:0;
+      cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+      user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .filter-title::after {
+      content: '▼'; font-size: 10px; transition: transform 0.3s ease; margin-left: 20px; color: #ff4ea3;
+    }
+    .filter-title.open { border-bottom:2px solid #ff4ea3; padding-bottom:6px; margin-bottom:8px; }
+    .filter-title.open::after { transform: rotate(180deg); }
+
+    /* 💡 リスト部分は初期状態で非表示（display: none） */
+    #filter-list {
+      display: none; max-height: calc(100vh - 160px); overflow-y: auto;
+    }
+    #filter-list.open {
+      display: block;
+    }
+
     .filter-item { margin-bottom: 6px; font-size: 12px; display: flex; align-items: center; color: #444;}
     .filter-item input { margin-right: 6px; width: 14px; height: 14px; cursor: pointer; }
 
-    .leaflet-top.leaflet-right { top: 10px; right: 10px; }
-
-    /* 💡 現在地ボタンの追加 */
     #locate-btn {
       position: absolute; bottom: 20px; right: 10px; z-index: 1000;
       background: white; border: 2px solid rgba(0,0,0,0.1); border-radius: 8px;
@@ -73,7 +89,7 @@
 </div>
 
 <div id="filter-container">
-  <div id="filter-title" class="filter-title">カテゴリー</div>
+  <div id="filter-title" class="filter-title">表示切替</div>
   <div id="filter-list"></div>
 </div>
 
@@ -88,6 +104,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <script>
+  // ★ ここに「ウェブに公開」で取得した output=csv で終わるURLを貼ります ★
   const rawCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRtnM7Yi8eYM5dziTLTZesCllpqOpqkWs2ZOUkUf93HpoMnSV0IkK81eEUKcVTs2mKSbhR8OyanoVZ8/pub?gid=0&single=true&output=csv';
   
   const cacheBuster = Math.floor(new Date().getTime() / 300000); 
@@ -106,9 +123,8 @@
   };
 
   let allData = [];
-  let activeFilters = new Set(); // 💡 空の場合はすべて表示する
+  let activeFilters = new Set(); 
 
-  // 💡 食堂を統合した安全なカテゴリー定義
   const categories = {
     "飲食・屋台めし": { emoji: "🍱", en: "Food Stalls", zh: "飲食・屋台美食", keywords: /焼きそば|焼そば|肉|ステーキ|カレー|たこ焼き|イカ|いか|ほたて|海鮮|串焼き|おにぎり|バーガー|フランク|ドッグ|ポテト|じゃが|チーズ|パン|豚饅|笹かまぼこ|お好み焼き|大阪焼|yakisoba|meat|curry|takoyaki|squid|scallop|burger|bread|okonomiyaki|食堂|とらや|ありがとう|三浦|三忠|よこやま|ラーメン|そば|うどん|麺|restaurant|ramen|noodle/ },
     "スイーツ・喫茶": { emoji: "🍰", en: "Sweets & Cafe", zh: "甜點・喫茶", keywords: /りんご|アップル|いちご|バナナ|みかん|栗|チョコ|だんご|団子|もち|餅|アイス|氷|飴|キャンディー|クレープ|カステラ|ドーナツ|チュロス|ケーキ|パイ|パフェ|お菓子|菓子|candy|sweets|apple|strawberry|banana|ice|dango/ },
@@ -128,7 +144,22 @@
   const markerCluster = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 18 });
   map.addLayer(markerCluster);
 
-  // 💡 GPS現在地機能
+  // 💡 UI要素の貫通防止（メニューを触ったときに地図が動かないようにする）
+  L.DomEvent.disableClickPropagation(document.getElementById('filter-container'));
+  L.DomEvent.disableScrollPropagation(document.getElementById('filter-container'));
+  L.DomEvent.disableClickPropagation(document.getElementById('lang-selector'));
+
+  // 💡 オートクローズ機能：地図を触った・ドラッグした時にメニューを自動で閉じる
+  map.on('click dragstart', function() {
+    const title = document.getElementById('filter-title');
+    const list = document.getElementById('filter-list');
+    if (title.classList.contains('open')) {
+      title.classList.remove('open');
+      list.classList.remove('open');
+    }
+  });
+
+  // GPS機能
   let userMarker = null;
   let userCircle = null;
   map.on('locationfound', function(e) {
@@ -148,12 +179,23 @@
 
   function safeStr(val) { return val ? String(val).trim() : ""; }
 
-  function getSpecificEmoji(row) {
-    const text = (safeStr(row["表示用ラベル"]) + " " + safeStr(row["正式名称"])).toLowerCase();
-    const emojiOverrides = [
+  // 💡 ファジーパース（列名がブレても確実にデータを拾う関数）
+  function getColVal(row, keywords) {
+    for (let key of Object.keys(row)) {
+      let k = key.toLowerCase().trim();
+      for (let kw of keywords) {
+        if (k.includes(kw)) return String(row[key]).trim();
+      }
+    }
+    return "";
+  }
+
+  function getSpecificEmoji(text) {
+    text = text.toLowerCase();
+    const overrides = [
       { key: "aed", emoji: "💓" }, { key: "車いす", emoji: "♿" }, { key: "カランカランアイス", emoji: "🍨" },
       { key: "ギャラリーイシオカ", emoji: "🛍️" }, { key: "お菓子のヒロヤ", emoji: "🍰" }, { key: "ありがとう食堂", emoji: "🍜" },
-      { key: "とらや", emoji: "🍜" }, { key: "海鮮串焼き", emoji: "🍖" }, { key: "ワイン・バーガー", emoji: "🍷" },
+      { key: "とらや", emoji: "🍜" }, { key: "海鮮串焼き", emoji: "🍖" }, { key: "ワイン", emoji: "🍷" },
       { key: "みそこんにゃく", emoji: "🍢" }, { key: "かくみ", emoji: "🍗" }, { key: "噂の豚饅", emoji: "🥟" },
       { key: "焼ポン", emoji: "🍿" }, { key: "チーズスティック", emoji: "🥨" }, { key: "ほたて串焼き", emoji: "🍖" },
       { key: "バナナチョコ", emoji: "🍌" }, { key: "花見だんご", emoji: "🍡" }, { key: "おでん・やきとり・やきそば", emoji: "🍢" },
@@ -161,22 +203,22 @@
       { key: "お好み焼", emoji: "🍳" }, { key: "弘前物産館", emoji: "🛍️" }, { key: "ジャンボおでん", emoji: "🍢" },
       { key: "いちご飴", emoji: "🍭" }, { key: "みたらし団子", emoji: "🍡" }, { key: "焼きだんご", emoji: "🍡" },
       { key: "甘栗", emoji: "🌰" }, { key: "大判焼", emoji: "🍘" }, { key: "natural candy", emoji: "🥤" },
-      { key: "川村商店", emoji: "🍗" }, { key: "青りんご入カレップルパン", emoji: "🍞" }, { key: "ブリトードック", emoji: "🌯" },
-      { key: "ブリトードッグ", emoji: "🌯" }, { key: "カットりんご", emoji: "🍎" }, { key: "嶽きみ天ぷら", emoji: "🍤" },
-      { key: "もつ煮込み", emoji: "🍲" }, { key: "さつまスティック", emoji: "🍟" }, { key: "亀屋のたこやき", emoji: "🐙" },
-      { key: "たこやき", emoji: "🐙" }, { key: "クラフトビール", emoji: "🍺" }, { key: "10円パン", emoji: "🍞" },
-      { key: "トロピカルジュース", emoji: "🍹" }, { key: "味噌カレー", emoji: "🍜" }, { key: "いがめんち", emoji: "🧆" },
-      { key: "青森地酒", emoji: "🍶" }, { key: "チーズドッグ", emoji: "🌭" }, { key: "もちもちポテト", emoji: "🍟" },
-      { key: "シロコロホルモン", emoji: "🥩" }, { key: "いか焼", emoji: "🦑" }, { key: "から揚げ", emoji: "🍗" },
-      { key: "トルネードポテト", emoji: "🍟" }, { key: "梅ケ枝", emoji: "🍜" }, { key: "輪なげ", emoji: "⭕" },
-      { key: "おばけ屋敷", emoji: "👻" }, { key: "マジックハウス", emoji: "🎪" }, { key: "ジャンボ迷路", emoji: "🎪" },
-      { key: "おでん", emoji: "🍢" },{ key: "珈琲", emoji: "☕" },{ key: "コーヒー", emoji: "☕" },
-      { key: "うるし工房", emoji: "🛍️" },{ key: "観光舟", emoji: "⛵" },{ key: "ファンシー", emoji: "🎯" },
-      { key: "名物肉巻", emoji: "🍖" },{ key: "おかげ", emoji: "🍧" },{ key: "ピタパンサンド", emoji: "🥪" },
-      { key: "牛ステーキ", emoji: "🍖" },{ key: "駐輪場", emoji: "🚲" },{ key: "自転車", emoji: "🚲" } 
+      { key: "川村商店", emoji: "🍗" }, { key: "カレップルパン", emoji: "🍞" }, { key: "ブリトードック", emoji: "🌯" },
+      { key: "カットりんご", emoji: "🍎" }, { key: "嶽きみ天ぷら", emoji: "🍤" }, { key: "もつ煮込み", emoji: "🍲" },
+      { key: "さつまスティック", emoji: "🍟" }, { key: "亀屋のたこやき", emoji: "🐙" }, { key: "たこやき", emoji: "🐙" },
+      { key: "クラフトビール", emoji: "🍺" }, { key: "10円パン", emoji: "🍞" }, { key: "トロピカルジュース", emoji: "🍹" },
+      { key: "味噌カレー", emoji: "🍜" }, { key: "いがめんち", emoji: "🧆" }, { key: "青森地酒", emoji: "🍶" },
+      { key: "チーズドッグ", emoji: "🌭" }, { key: "もちもちポテト", emoji: "🍟" }, { key: "シロコロホルモン", emoji: "🥩" },
+      { key: "いか焼", emoji: "🦑" }, { key: "から揚げ", emoji: "🍗" }, { key: "トルネードポテト", emoji: "🍟" },
+      { key: "梅ケ枝", emoji: "🍜" }, { key: "輪なげ", emoji: "⭕" }, { key: "おばけ屋敷", emoji: "👻" },
+      { key: "マジックハウス", emoji: "🎪" }, { key: "ジャンボ迷路", emoji: "🎪" }, { key: "おでん", emoji: "🍢" },
+      { key: "珈琲", emoji: "☕" }, { key: "コーヒー", emoji: "☕" }, { key: "うるし工房", emoji: "🛍️" },
+      { key: "観光舟", emoji: "⛵" }, { key: "ファンシー", emoji: "🎯" }, { key: "名物肉巻", emoji: "🍖" },
+      { key: "おかげ", emoji: "🍧" }, { key: "ピタパンサンド", emoji: "🥪" }, { key: "牛ステーキ", emoji: "🍖" },
+      { key: "駐輪場", emoji: "🚲" }, { key: "自転車", emoji: "🚲" }, { key: "フードフェスタ", emoji: "🍱" }
     ];
-    for (let override of emojiOverrides) {
-      if (text.includes(override.key.toLowerCase())) return override.emoji;
+    for (let ov of overrides) {
+      if (text.includes(ov.key.toLowerCase())) return ov.emoji;
     }
     for (let [name, cat] of Object.entries(categories)) {
       if (cat.keywords.test(text)) return cat.emoji;
@@ -184,23 +226,21 @@
     return "🎪"; 
   }
 
-  function detectCategory(row) {
-    const definedCategory = safeStr(row["カテゴリー"]);
-    if (definedCategory && categories[definedCategory]) return definedCategory;
+  function detectCategory(text, definedCat) {
+    if (definedCat && categories[definedCat]) return definedCat;
 
-    const text = (safeStr(row["表示用ラベル"]) + " " + safeStr(row["正式名称"])).toLowerCase();
     const catOverrides = [
       { key: "津軽漆", cat: "物販・おみやげ" }, { key: "中濠観光", cat: "エンタメ" }, { key: "ファンシー", cat: "エンタメ" },
       { key: "抹茶接待", cat: "スイーツ・喫茶" }, { key: "匠館", cat: "スイーツ・喫茶" }, { key: "弘前市立観光館", cat: "物販・おみやげ" },
       { key: "成田専蔵", cat: "スイーツ・喫茶" }, { key: "演芸場", cat: "エンタメ" }, { key: "おかげ茶や", cat: "スイーツ・喫茶" },
-      { key: "トロピカルジュース", cat: "スイーツ・喫茶" }, { key: "カフェデリーナ", cat: "スイーツ・喫茶" }, { key: "梅ケ枝", cat: "飲食・屋台めし" }, // 💡 転送先を修正
+      { key: "トロピカルジュース", cat: "スイーツ・喫茶" }, { key: "カフェデリーナ", cat: "スイーツ・喫茶" }, { key: "梅ケ枝", cat: "飲食・屋台めし" },
       { key: "わくわくランド", cat: "エンタメ" }, { key: "バルーンハウス", cat: "エンタメ" }, { key: "大髙商店", cat: "飲食・屋台めし" },
       { key: "中村商店", cat: "飲食・屋台めし" }, { key: "広島のお好み焼", cat: "飲食・屋台めし" }, { key: "赤石商店", cat: "飲食・屋台めし" },
       { key: "阿保商店", cat: "スイーツ・喫茶" }, { key: "丹藤商店", cat: "飲食・屋台めし" }, { key: "安田商店", cat: "スイーツ・喫茶" },
       { key: "aed", cat: "AED" }
     ];
-    for (let override of catOverrides) {
-      if (text.includes(override.key.toLowerCase())) return override.cat;
+    for (let ov of catOverrides) {
+      if (text.includes(ov.key.toLowerCase())) return ov.cat;
     }
     for (let [name, cat] of Object.entries(categories)) {
       if (cat.keywords.test(text)) return name;
@@ -210,76 +250,71 @@
 
   function updateMarkers() {
     markerCluster.clearLayers();
-    let markerCount = 0;
 
     allData.forEach(row => {
-      const cat = detectCategory(row);
-      // 💡 activeFiltersが空なら全表示、そうでないならチェックしたものだけ表示
+      let labelStr = getColVal(row, ["表示用ラベル", "ラベル"]);
+      let nameStr = getColVal(row, ["正式名称", "名称"]);
+      let enStr = getColVal(row, ["english", "en"]);
+      let zhStr = getColVal(row, ["繁体", "zh"]);
+      let catCol = getColVal(row, ["カテゴリー", "カテゴリ"]);
+      let latStr = getColVal(row, ["緯度", "lat", "latitude"]);
+      let lonStr = getColVal(row, ["経度", "lon", "long", "longitude"]);
+
+      const text = (labelStr + " " + nameStr).toLowerCase();
+      const cat = detectCategory(text, catCol);
+
       if (activeFilters.size === 0 || activeFilters.has(cat)) {
-        const latStr = row["緯度"] || row["lat"] || row["latitude"] || row["Latitude"] || "";
-        const lonStr = row["経度"] || row["lon"] || row["long"] || row["longitude"] || row["Longitude"] || "";
-        
         const lat = parseFloat(latStr);
         const lon = parseFloat(lonStr);
         
         if (!isNaN(lat) && !isNaN(lon)) {
-          const icon = L.divIcon({ className: 'custom-emoji-icon', html: getSpecificEmoji(row) });
+          const icon = L.divIcon({ className: 'custom-emoji-icon', html: getSpecificEmoji(text) });
           
-          let mainTitle = safeStr(row["表示用ラベル"]) || uiTexts[currentLang].unknown;
-          let subTitle1 = safeStr(row["正式名称"]);
-          let subTitle2 = `EN: ${safeStr(row["English Name"])}`;
-          let subTitle3 = `ZH: ${safeStr(row["繁体名"])}`;
-
-          if (currentLang === 'en' && safeStr(row["English Name"])) {
-            mainTitle = safeStr(row["English Name"]);
-            subTitle1 = `JP: ${safeStr(row["正式名称"])}`;
-            subTitle2 = ""; 
-          }
-          else if (currentLang === 'zh' && safeStr(row["繁体名"])) {
-            mainTitle = safeStr(row["繁体名"]);
-            subTitle1 = `JP: ${safeStr(row["正式名称"])}`;
-            subTitle3 = ""; 
+          let mainTitle = labelStr || uiTexts[currentLang].unknown;
+          let subTitle1 = nameStr;
+          
+          if (currentLang === 'en' && enStr) {
+            mainTitle = enStr; subTitle1 = "JP: " + nameStr; enStr = ""; 
+          } else if (currentLang === 'zh' && zhStr) {
+            mainTitle = zhStr; subTitle1 = "JP: " + nameStr; zhStr = ""; 
           }
 
-          let popupHtml = `<div class="popup-title">${mainTitle}</div>`;
-          if (subTitle1) popupHtml += `<div class="popup-name">${subTitle1}</div>`;
-          if (subTitle2 && subTitle2 !== "EN: ") popupHtml += `<div class="popup-sub">${subTitle2}</div>`;
-          if (subTitle3 && subTitle3 !== "ZH: ") popupHtml += `<div class="popup-sub">${subTitle3}</div>`;
+          let html = `<div class="popup-title">${mainTitle}</div>`;
+          if (subTitle1) html += `<div class="popup-name">${subTitle1}</div>`;
+          if (currentLang !== 'en' && enStr) html += `<div class="popup-sub">EN: ${enStr}</div>`;
+          if (currentLang !== 'zh' && zhStr) html += `<div class="popup-sub">ZH: ${zhStr}</div>`;
 
-          L.marker([lat, lon], { icon: icon }).bindPopup(popupHtml).addTo(markerCluster);
-          markerCount++;
+          L.marker([lat, lon], { icon: icon }).bindPopup(html).addTo(markerCluster);
         }
       }
     });
-
-    if(markerCount === 0 && allData.length > 0) {
-        document.getElementById('error-msg').style.display = 'block';
-        document.getElementById('error-msg').innerText = "地図に表示できる座標データがありません。";
-    } else {
-        document.getElementById('error-msg').style.display = 'none';
-    }
   }
 
   function initFilterUI() {
-    const list = document.getElementById('filter-list');
-    list.innerHTML = ""; 
+    const titleEl = document.getElementById('filter-title');
+    const listEl = document.getElementById('filter-list');
     
-    document.getElementById('filter-title').innerText = uiTexts[currentLang].filterTitle;
+    titleEl.innerText = uiTexts[currentLang].filterTitle;
+    listEl.innerHTML = ""; 
+    
+    // 言語ボタンのハイライト更新
     document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-' + currentLang).classList.add('active');
+
+    // 💡 タイトルタップ時の開閉トグル処理
+    titleEl.onclick = function(e) {
+      this.classList.toggle('open');
+      listEl.classList.toggle('open');
+    };
 
     Object.keys(categories).forEach(cat => {
       const div = document.createElement('div');
       div.className = 'filter-item';
+      let label = currentLang === 'en' ? categories[cat].en : (currentLang === 'zh' ? categories[cat].zh : cat);
       
-      let displayCatName = cat; 
-      if (currentLang === 'en') displayCatName = categories[cat].en;
-      else if (currentLang === 'zh') displayCatName = categories[cat].zh;
-
-      // 💡 初期状態はチェックを外す (checked 属性を付与しない)
       const isChecked = activeFilters.has(cat);
+      div.innerHTML = `<label><input type="checkbox" value="${cat}" ${isChecked ? 'checked' : ''}> <span style="margin-right:4px;">${categories[cat].emoji}</span> ${label}</label>`;
       
-      div.innerHTML = `<label><input type="checkbox" value="${cat}" ${isChecked ? 'checked' : ''}> <span style="margin-right:4px;">${categories[cat].emoji}</span> ${displayCatName}</label>`;
       div.querySelector('input').addEventListener('change', (e) => {
         if (e.target.checked) {
             activeFilters.add(cat);
@@ -288,25 +323,25 @@
         }
         updateMarkers();
       });
-      list.appendChild(div);
+      listEl.appendChild(div);
     });
   }
 
-  window.changeLang = function(lang) {
-    currentLang = lang;
-    initFilterUI();
-    updateMarkers();
+  window.changeLang = function(lang) { 
+      currentLang = lang; 
+      initFilterUI(); 
+      updateMarkers(); 
   };
 
   function fetchAndRenderData() {
     Papa.parse(csvUrl, {
       download: true, header: true, skipEmptyLines: true,
       complete: (res) => { 
-        if (res.data.length > 0) {
-           allData = res.data; 
-           try { localStorage.setItem('sakuraMapData2026', JSON.stringify(allData)); } catch(e) {}
-           initFilterUI(); 
-           updateMarkers(); 
+        if (res.data && res.data.length > 0) {
+          allData = res.data; 
+          try { localStorage.setItem('sakuraMapData2026', JSON.stringify(allData)); } catch(e) {}
+          initFilterUI(); 
+          updateMarkers(); 
         }
       },
       error: (err) => {
@@ -320,7 +355,6 @@
           }
         } catch(e) {}
         document.getElementById('error-msg').style.display = 'block';
-        document.getElementById('error-msg').innerText = "通信エラーが発生しました。ページを再読み込みしてください。";
       }
     });
   }
