@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>2026 Hirosaki Sakura Festival Map</title>
 
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-RVE9ZMG3RG"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-RVE9ZMG3RG');
+  </script>
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -21,7 +29,6 @@
     .lang-btn { cursor: pointer; padding: 6px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-weight: bold; color: #555; background: #fff; transition: 0.2s; }
     .lang-btn.active { background: #ff4ea3; color: white; border-color: #ff4ea3; }
 
-    /* 💡 フィルターメニューの折りたたみデザイン */
     #filter-container {
       position: absolute; top: 55px; right: 10px; z-index: 1000;
       background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 8px;
@@ -32,20 +39,11 @@
       cursor: pointer; display: flex; justify-content: space-between; align-items: center;
       user-select: none; -webkit-tap-highlight-color: transparent;
     }
-    .filter-title::after {
-      content: '▼'; font-size: 10px; transition: transform 0.3s ease; margin-left: 20px; color: #ff4ea3;
-    }
+    .filter-title::after { content: '▼'; font-size: 10px; transition: transform 0.3s ease; margin-left: 20px; color: #ff4ea3; }
     .filter-title.open { border-bottom:2px solid #ff4ea3; padding-bottom:6px; margin-bottom:8px; }
     .filter-title.open::after { transform: rotate(180deg); }
-
-    /* 💡 リスト部分は初期状態で非表示（display: none） */
-    #filter-list {
-      display: none; max-height: calc(100vh - 160px); overflow-y: auto;
-    }
-    #filter-list.open {
-      display: block;
-    }
-
+    #filter-list { display: none; max-height: calc(100vh - 160px); overflow-y: auto; }
+    #filter-list.open { display: block; }
     .filter-item { margin-bottom: 6px; font-size: 12px; display: flex; align-items: center; color: #444;}
     .filter-item input { margin-right: 6px; width: 14px; height: 14px; cursor: pointer; }
 
@@ -57,27 +55,17 @@
     }
     .user-location-icon {
       background-color: #007bff; border: 3px solid white; border-radius: 50%;
-      box-shadow: 0 0 5px rgba(0,0,0,0.5); width: 16px !important; height: 16px !important;
-      margin-left: -8px !important; margin-top: -8px !important;
+      box-shadow: 0 0 5px rgba(0,0,0,0.5); width: 16px !important; height: 16px !important; margin-left: -8px !important; margin-top: -8px !important;
     }
 
     .custom-emoji-icon {
-      font-size: 18px; text-align: center; line-height: 28px;
-      background: white; border-radius: 50%; border: 2px solid #ff4ea3;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3); width: 28px !important; height: 28px !important;
+      font-size: 18px; text-align: center; line-height: 28px; background: white; border-radius: 50%; border: 2px solid #ff4ea3; box-shadow: 0 2px 5px rgba(0,0,0,0.3); width: 28px !important; height: 28px !important;
     }
-    
     .leaflet-popup-content-wrapper { border-radius: 8px; padding: 1px; }
     .leaflet-popup-content { margin: 10px 14px; line-height: 1.4; }
     .popup-title { font-size: 15px; font-weight: bold; color: #ff4ea3; margin-bottom: 4px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
     .popup-name { font-size: 13px; font-weight: bold; margin-bottom: 2px; color: #333; }
     .popup-sub { font-size: 11px; color: #777; }
-
-    #error-msg {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: rgba(220, 53, 69, 0.9); color: white; padding: 15px 20px; border-radius: 8px;
-      z-index: 2000; display: none; text-align: center; font-weight: bold; font-size: 14px; width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
   </style>
 </head>
 <body>
@@ -94,9 +82,6 @@
 </div>
 
 <div id="locate-btn" title="現在地を表示">🧭</div>
-
-<div id="error-msg">データの読み込みに失敗しました。</div>
-
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -104,9 +89,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <script>
-  // ★ ここに「ウェブに公開」で取得した output=csv で終わるURLを貼ります ★
   const rawCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRtnM7Yi8eYM5dziTLTZesCllpqOpqkWs2ZOUkUf93HpoMnSV0IkK81eEUKcVTs2mKSbhR8OyanoVZ8/pub?gid=0&single=true&output=csv';
-  
   const cacheBuster = Math.floor(new Date().getTime() / 300000); 
   const csvUrl = rawCsvUrl + '&cb=' + cacheBuster;
 
@@ -126,7 +109,7 @@
   let activeFilters = new Set(); 
 
   const categories = {
-    "飲食・屋台めし": { emoji: "🍱", en: "Food Stalls", zh: "飲食・屋台美食", keywords: /焼きそば|焼そば|肉|ステーキ|カレー|たこ焼き|イカ|いか|ほたて|海鮮|串焼き|おにぎり|バーガー|フランク|ドッグ|ポテト|じゃが|チーズ|パン|豚饅|笹かまぼこ|お好み焼き|大阪焼|yakisoba|meat|curry|takoyaki|squid|scallop|burger|bread|okonomiyaki|食堂|とらや|ありがとう|三浦|三忠|よこやま|ラーメン|そば|うどん|麺|restaurant|ramen|noodle/ },
+    "飲食・屋台めし": { emoji: "🍱", en: "Food Stalls", zh: "飲食・屋台美食", keywords: /焼きそば|焼そば|肉|ステーキ|カレー|たこ焼き|イカ|いか|ほたて|海鮮|串焼き|おにぎり|バーガー|フランク|ドッグ|ポテト|じゃが|チーズ|パン|豚饅|笹かまぼこ|お好み焼き|大阪焼|yakisoba|meat|curry|takoyaki|squid|scallop|burger|bread|okonomiyaki|食堂|とらや|ありがとう|三浦|三忠|よこやま|ラーメン|そば|うどん|麺|フードフェスタ|restaurant|ramen|noodle/ },
     "スイーツ・喫茶": { emoji: "🍰", en: "Sweets & Cafe", zh: "甜點・喫茶", keywords: /りんご|アップル|いちご|バナナ|みかん|栗|チョコ|だんご|団子|もち|餅|アイス|氷|飴|キャンディー|クレープ|カステラ|ドーナツ|チュロス|ケーキ|パイ|パフェ|お菓子|菓子|candy|sweets|apple|strawberry|banana|ice|dango/ },
     "物販・おみやげ": { emoji: "🛍️", en: "Souvenirs & Goods", zh: "伴手禮", keywords: /土産|物産|工芸|染|石|漆|焼|陶|シャツ|物産館|ギャラリー|souvenir|museum|gallery/ },
     "エンタメ": { emoji: "🎯", en: "Entertainment", zh: "娛樂", keywords: /射的|ゲーム|くじ|ルーレット|ストライク|ボール|金魚|おめん|おもちゃ|迷路|おばけ|マジック|target|game|goldfish|toy|ghost/ },
@@ -144,12 +127,10 @@
   const markerCluster = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 18 });
   map.addLayer(markerCluster);
 
-  // 💡 UI要素の貫通防止（メニューを触ったときに地図が動かないようにする）
   L.DomEvent.disableClickPropagation(document.getElementById('filter-container'));
   L.DomEvent.disableScrollPropagation(document.getElementById('filter-container'));
   L.DomEvent.disableClickPropagation(document.getElementById('lang-selector'));
 
-  // 💡 オートクローズ機能：地図を触った・ドラッグした時にメニューを自動で閉じる
   map.on('click dragstart', function() {
     const title = document.getElementById('filter-title');
     const list = document.getElementById('filter-list');
@@ -159,7 +140,6 @@
     }
   });
 
-  // GPS機能
   let userMarker = null;
   let userCircle = null;
   map.on('locationfound', function(e) {
@@ -173,13 +153,14 @@
       userCircle.setRadius(radius);
     }
   });
+  
   document.getElementById('locate-btn').addEventListener('click', function() {
     map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true });
+    
+    // 📊 GA4: 現在地ボタンの利用を計測
+    gtag('event', 'use_geolocation', { 'ui_language': currentLang });
   });
 
-  function safeStr(val) { return val ? String(val).trim() : ""; }
-
-  // 💡 ファジーパース（列名がブレても確実にデータを拾う関数）
   function getColVal(row, keywords) {
     for (let key of Object.keys(row)) {
       let k = key.toLowerCase().trim();
@@ -228,7 +209,6 @@
 
   function detectCategory(text, definedCat) {
     if (definedCat && categories[definedCat]) return definedCat;
-
     const catOverrides = [
       { key: "津軽漆", cat: "物販・おみやげ" }, { key: "中濠観光", cat: "エンタメ" }, { key: "ファンシー", cat: "エンタメ" },
       { key: "抹茶接待", cat: "スイーツ・喫茶" }, { key: "匠館", cat: "スイーツ・喫茶" }, { key: "弘前市立観光館", cat: "物販・おみやげ" },
@@ -274,9 +254,9 @@
           let subTitle1 = nameStr;
           
           if (currentLang === 'en' && enStr) {
-            mainTitle = enStr; subTitle1 = "JP: " + nameStr; enStr = ""; 
+            mainTitle = enStr; subTitle1 = "JP: " + nameStr; 
           } else if (currentLang === 'zh' && zhStr) {
-            mainTitle = zhStr; subTitle1 = "JP: " + nameStr; zhStr = ""; 
+            mainTitle = zhStr; subTitle1 = "JP: " + nameStr; 
           }
 
           let html = `<div class="popup-title">${mainTitle}</div>`;
@@ -284,7 +264,16 @@
           if (currentLang !== 'en' && enStr) html += `<div class="popup-sub">EN: ${enStr}</div>`;
           if (currentLang !== 'zh' && zhStr) html += `<div class="popup-sub">ZH: ${zhStr}</div>`;
 
-          L.marker([lat, lon], { icon: icon }).bindPopup(html).addTo(markerCluster);
+          const marker = L.marker([lat, lon], { icon: icon }).bindPopup(html).addTo(markerCluster);
+
+          // 📊 GA4: ピンがタップされた時の計測（人気店舗や人気エリアの分析用）
+          marker.on('click', function() {
+             gtag('event', 'select_location', {
+                'location_name': nameStr || labelStr,
+                'location_category': cat,
+                'ui_language': currentLang
+             });
+          });
         }
       }
     });
@@ -297,11 +286,9 @@
     titleEl.innerText = uiTexts[currentLang].filterTitle;
     listEl.innerHTML = ""; 
     
-    // 言語ボタンのハイライト更新
     document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-' + currentLang).classList.add('active');
 
-    // 💡 タイトルタップ時の開閉トグル処理
     titleEl.onclick = function(e) {
       this.classList.toggle('open');
       listEl.classList.toggle('open');
@@ -316,12 +303,20 @@
       div.innerHTML = `<label><input type="checkbox" value="${cat}" ${isChecked ? 'checked' : ''}> <span style="margin-right:4px;">${categories[cat].emoji}</span> ${label}</label>`;
       
       div.querySelector('input').addEventListener('change', (e) => {
-        if (e.target.checked) {
+        const isNowChecked = e.target.checked;
+        if (isNowChecked) {
             activeFilters.add(cat);
         } else {
             activeFilters.delete(cat);
         }
         updateMarkers();
+
+        // 📊 GA4: カテゴリーの絞り込みを計測
+        gtag('event', 'filter_category', {
+            'category_name': cat,
+            'filter_action': isNowChecked ? 'check' : 'uncheck',
+            'ui_language': currentLang
+        });
       });
       listEl.appendChild(div);
     });
@@ -331,6 +326,11 @@
       currentLang = lang; 
       initFilterUI(); 
       updateMarkers(); 
+      
+      // 📊 GA4: 言語の切り替えを計測
+      gtag('event', 'change_language', {
+         'selected_language': lang
+      });
   };
 
   function fetchAndRenderData() {
@@ -354,7 +354,6 @@
             return;
           }
         } catch(e) {}
-        document.getElementById('error-msg').style.display = 'block';
       }
     });
   }
